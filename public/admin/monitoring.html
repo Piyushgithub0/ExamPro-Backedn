@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ExamPro — Live Monitoring</title>
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo"><div class="logo-icon">🎓</div><div><div class="logo-text">ExamPro</div><div class="logo-sub">Admin Panel</div></div></div>
+    <nav>
+      <div class="nav-section"><div class="nav-label">Overview</div>
+        <a href="/admin/dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="/admin/monitoring.html" class="nav-item active"><span class="nav-icon">🟢</span> Live Monitoring</a>
+      </div>
+      <div class="nav-section"><div class="nav-label">Management</div>
+        <a href="/admin/users.html" class="nav-item"><span class="nav-icon">👥</span> Users</a>
+        <a href="/admin/exams.html" class="nav-item"><span class="nav-icon">📝</span> Exams</a>
+        <a href="/admin/cheat-logs.html" class="nav-item"><span class="nav-icon">🚨</span> Cheat Logs</a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info"><div class="user-avatar" id="sidebar-avatar">A</div><div><div class="user-name" id="sidebar-user-name">Admin</div><div class="user-role" id="sidebar-user-role">admin</div></div></div>
+      <button class="nav-item" id="logout-btn" style="color:var(--danger)"><span class="nav-icon">🚪</span> Logout</button>
+    </div>
+  </aside>
+  <main class="main-content">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+      <div>
+        <h1>🟢 Live Monitoring</h1>
+        <p>Real-time view of active exams and students — refreshes every 15 seconds</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        <div style="width:10px;height:10px;border-radius:50%;background:var(--success);animation:pulse 1.5s ease infinite"></div>
+        <span style="font-size:0.85rem;color:var(--text-muted)">Live</span>
+        <button class="btn btn-secondary btn-sm" onclick="loadMonitoring()">🔄 Refresh</button>
+      </div>
+    </div>
+    <div id="monitoring-content">
+      <div class="empty-state"><div class="empty-icon" style="font-size:4rem">📡</div><h3>Loading live data...</h3></div>
+    </div>
+  </main>
+</div>
+
+<style>
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
+.exam-monitor-card { background:var(--bg-card); border:1px solid rgba(16,185,129,0.25); border-radius:var(--radius-lg); padding:1.5rem; margin-bottom:1.5rem; }
+.exam-monitor-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem; }
+.student-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.65rem; }
+.student-pill { display:flex; align-items:center; gap:0.65rem; padding:0.65rem 0.85rem; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.2); border-radius:8px; }
+.student-dot { width:8px; height:8px; border-radius:50%; background:var(--success); flex-shrink:0; }
+</style>
+
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+  Auth.requireAuth(['admin']);
+  initSidebar();
+
+  async function loadMonitoring() {
+    try {
+      const { activeExams } = await api.get('/admin/monitoring');
+      const el = document.getElementById('monitoring-content');
+
+      if (!activeExams.length) {
+        el.innerHTML = `<div class="empty-state"><div class="empty-icon" style="font-size:4rem">📡</div><h3>No active exams</h3><p>Active exams and students will appear here</p></div>`;
+        return;
+      }
+
+      el.innerHTML = activeExams.map(exam => `
+        <div class="exam-monitor-card">
+          <div class="exam-monitor-header">
+            <div>
+              <h3 style="margin-bottom:0.25rem">${exam.title}</h3>
+              <p style="font-size:0.85rem">👨‍🏫 ${exam.teacher || 'Unknown'} &nbsp;|&nbsp; Subject not listed</p>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:2rem;font-weight:900;color:#34d399;line-height:1">${exam.activeStudentCount}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted)">students online</div>
+            </div>
+          </div>
+          <div class="student-grid">
+            ${exam.activeStudents.map(s => `
+              <div class="student-pill">
+                <div class="student-dot"></div>
+                <div>
+                  <div style="font-size:0.85rem;font-weight:600">${s.student?.name || 'Unknown'}</div>
+                  <div style="font-size:0.7rem;color:var(--text-muted)">Last seen ${new Date(s.lastSeen).toLocaleTimeString('en-IN')}</div>
+                </div>
+              </div>
+            `).join('') || '<p style="color:var(--text-dim);font-size:0.85rem">No students yet</p>'}
+          </div>
+        </div>
+      `).join('');
+    } catch (e) { showToast('Monitoring unavailable', 'error'); }
+  }
+
+  loadMonitoring();
+  setInterval(loadMonitoring, 15000);
+</script>
+</body>
+</html>

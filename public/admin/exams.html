@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ExamPro — Admin Exam Management</title>
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo"><div class="logo-icon">🎓</div><div><div class="logo-text">ExamPro</div><div class="logo-sub">Admin Panel</div></div></div>
+    <nav>
+      <div class="nav-section"><div class="nav-label">Overview</div>
+        <a href="/admin/dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="/admin/monitoring.html" class="nav-item"><span class="nav-icon">🟢</span> Live Monitoring</a>
+      </div>
+      <div class="nav-section"><div class="nav-label">Management</div>
+        <a href="/admin/users.html" class="nav-item"><span class="nav-icon">👥</span> Users</a>
+        <a href="/admin/exams.html" class="nav-item active"><span class="nav-icon">📝</span> Exams</a>
+        <a href="/admin/cheat-logs.html" class="nav-item"><span class="nav-icon">🚨</span> Cheat Logs</a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info"><div class="user-avatar" id="sidebar-avatar">A</div><div><div class="user-name" id="sidebar-user-name">Admin</div><div class="user-role" id="sidebar-user-role">admin</div></div></div>
+      <button class="nav-item" id="logout-btn" style="color:var(--danger)"><span class="nav-icon">🚪</span> Logout</button>
+    </div>
+  </aside>
+  <main class="main-content">
+    <div class="page-header"><h1>Exam Management</h1><p>View all exams, control status, and release access codes</p></div>
+
+    <div class="card" style="padding:0">
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Title</th><th>Subject</th><th>Teacher</th><th>Duration</th><th>Scheduled</th><th>Status</th><th>Access Code</th><th>Actions</th></tr></thead>
+          <tbody id="exams-tbody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Access Code Modal -->
+<div class="modal-overlay" id="code-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header"><h3>Release Access Code</h3><button class="modal-close">✕</button></div>
+    <p style="margin-bottom:1rem">A unique 8-character code will be generated for this exam.</p>
+    <div id="code-display" style="display:none;text-align:center;padding:1.25rem;background:rgba(99,102,241,0.1);border:1.5px dashed var(--primary);border-radius:var(--radius-sm);margin-bottom:1rem">
+      <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem">Access Code</div>
+      <div id="code-value" style="font-size:2rem;font-weight:900;letter-spacing:0.2em;color:var(--primary-light)"></div>
+    </div>
+    <input type="hidden" id="code-exam-id" />
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal('code-modal')">Close</button>
+      <button class="btn btn-primary" id="gen-code-btn" onclick="generateCode()">🔑 Generate Code</button>
+    </div>
+  </div>
+</div>
+
+<!-- Status Modal -->
+<div class="modal-overlay" id="status-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><h3>Change Exam Status</h3><button class="modal-close">✕</button></div>
+    <input type="hidden" id="status-exam-id" />
+    <div class="form-group">
+      <label class="form-label">New Status</label>
+      <select id="new-status" class="form-control">
+        <option value="draft">Draft</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="active">Active</option>
+        <option value="completed">Completed</option>
+      </select>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal('status-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="changeStatus()">Update Status</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+  Auth.requireAuth(['admin']);
+  initSidebar();
+
+  async function loadExams() {
+    try {
+      const { exams } = await api.get('/admin/exams');
+      const tbody = document.getElementById('exams-tbody');
+      if (!exams.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">No exams found</td></tr>'; return; }
+      tbody.innerHTML = exams.map(e => `
+        <tr>
+          <td><div style="font-weight:600">${e.title}</div></td>
+          <td>${e.subject}</td>
+          <td>${e.createdBy?.name || '—'}</td>
+          <td>${e.duration} min</td>
+          <td>${formatDateTime(e.scheduledAt)}</td>
+          <td>${statusBadge(e.status)}</td>
+          <td>${e.accessCode ? `<span style="font-family:monospace;font-weight:700;color:var(--primary-light)">${e.accessCode}</span>` : '<span style="color:var(--text-dim)">—</span>'}</td>
+          <td>
+            <div style="display:flex;gap:0.4rem">
+              <button class="btn btn-sm btn-secondary btn-icon" title="Change Status" onclick="openStatusModal('${e._id}','${e.status}')">⚙️</button>
+              <button class="btn btn-sm btn-primary btn-icon" title="Release Code" onclick="openCodeModal('${e._id}')">🔑</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    } catch (e) { showToast('Failed to load exams', 'error'); }
+  }
+
+  function openCodeModal(id) {
+    document.getElementById('code-exam-id').value = id;
+    document.getElementById('code-display').style.display = 'none';
+    openModal('code-modal');
+  }
+
+  async function generateCode() {
+    const id = document.getElementById('code-exam-id').value;
+    try {
+      const { accessCode } = await api.post(`/admin/exams/${id}/release-code`, {});
+      document.getElementById('code-value').textContent = accessCode;
+      document.getElementById('code-display').style.display = 'block';
+      showToast('Access code generated!', 'success');
+      loadExams();
+    } catch (e) { showToast(e.message, 'error'); }
+  }
+
+  function openStatusModal(id, currentStatus) {
+    document.getElementById('status-exam-id').value = id;
+    document.getElementById('new-status').value = currentStatus;
+    openModal('status-modal');
+  }
+
+  async function changeStatus() {
+    const id     = document.getElementById('status-exam-id').value;
+    const status = document.getElementById('new-status').value;
+    try {
+      await api.put(`/admin/exams/${id}/status`, { status });
+      showToast('Status updated!', 'success');
+      closeModal('status-modal');
+      loadExams();
+    } catch (e) { showToast(e.message, 'error'); }
+  }
+
+  loadExams();
+</script>
+</body>
+</html>

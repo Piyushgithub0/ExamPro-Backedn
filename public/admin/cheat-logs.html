@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ExamPro — Cheat Logs</title>
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo"><div class="logo-icon">🎓</div><div><div class="logo-text">ExamPro</div><div class="logo-sub">Admin Panel</div></div></div>
+    <nav>
+      <div class="nav-section"><div class="nav-label">Overview</div>
+        <a href="/admin/dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="/admin/monitoring.html" class="nav-item"><span class="nav-icon">🟢</span> Live Monitoring</a>
+      </div>
+      <div class="nav-section"><div class="nav-label">Management</div>
+        <a href="/admin/users.html" class="nav-item"><span class="nav-icon">👥</span> Users</a>
+        <a href="/admin/exams.html" class="nav-item"><span class="nav-icon">📝</span> Exams</a>
+        <a href="/admin/cheat-logs.html" class="nav-item active"><span class="nav-icon">🚨</span> Cheat Logs</a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info"><div class="user-avatar" id="sidebar-avatar">A</div><div><div class="user-name" id="sidebar-user-name">Admin</div><div class="user-role" id="sidebar-user-role">admin</div></div></div>
+      <button class="nav-item" id="logout-btn" style="color:var(--danger)"><span class="nav-icon">🚪</span> Logout</button>
+    </div>
+  </aside>
+  <main class="main-content">
+    <div class="page-header"><h1>🚨 Cheat Logs</h1><p>Anti-cheat activity records for all exams</p></div>
+
+    <!-- Summary Cards -->
+    <div id="summary-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem"></div>
+
+    <!-- Log Table -->
+    <div class="card" style="padding:0">
+      <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border-light);display:flex;gap:1rem;flex-wrap:wrap;align-items:center">
+        <h3 class="card-title" style="margin:0">Activity Feed</h3>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Time</th><th>Student</th><th>Exam</th><th>Event</th><th>Details</th></tr></thead>
+          <tbody id="logs-tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+  Auth.requireAuth(['admin']);
+  initSidebar();
+
+  const eventStyles = {
+    tab_switch:         { label:'Tab Switch',      color:'badge-danger' },
+    window_blur:        { label:'Window Blur',     color:'badge-warning' },
+    right_click:        { label:'Right Click',     color:'badge-info' },
+    copy_paste:         { label:'Copy/Paste',      color:'badge-danger' },
+    visibility_change:  { label:'Visibility',      color:'badge-warning' },
+    fullscreen_exit:    { label:'Fullscreen Exit', color:'badge-info' },
+    keyboard_shortcut:  { label:'Key Shortcut',    color:'badge-primary' },
+  };
+
+  async function loadLogs() {
+    try {
+      const { logs, summary } = await api.get('/admin/cheat-logs');
+
+      // Render summary
+      const topStudents = summary.sort((a,b) => b.total - a.total).slice(0, 4);
+      document.getElementById('summary-cards').innerHTML = topStudents.map(s => `
+        <div class="card" style="padding:1rem">
+          <div style="font-weight:700;margin-bottom:0.25rem">${s.student?.name || 'Unknown'}</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem">${s.exam?.title || '—'}</div>
+          <div style="font-size:1.5rem;font-weight:900;color:var(--danger)">${s.total}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted)">total violations</div>
+        </div>
+      `).join('') || '';
+
+      // Render table
+      const tbody = document.getElementById('logs-tbody');
+      if (!logs.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">No activity logs yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML = logs.map(l => {
+        const ev = eventStyles[l.event] || { label: l.event, color:'badge-gray' };
+        return `<tr>
+          <td style="color:var(--text-muted);font-size:0.8rem;white-space:nowrap">${new Date(l.timestamp).toLocaleString('en-IN')}</td>
+          <td><div style="font-weight:600">${l.student?.name || '—'}</div><div style="font-size:0.75rem;color:var(--text-muted)">${l.student?.email || ''}</div></td>
+          <td>${l.exam?.title || '—'}</td>
+          <td><span class="badge ${ev.color}">${ev.label}</span></td>
+          <td style="color:var(--text-muted);font-size:0.85rem">${l.details || '—'}</td>
+        </tr>`;
+      }).join('');
+    } catch (e) { showToast('Failed to load logs', 'error'); }
+  }
+
+  loadLogs();
+</script>
+</body>
+</html>
