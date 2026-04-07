@@ -14,7 +14,7 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'http://localhost:3000',
-    'https://your-frontend.vercel.app' // 🔥 replace later
+    'https://evalix-smart-examination.vercel.app/' // 🔥 replace later
   ],
   credentials: true,
 }));
